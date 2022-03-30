@@ -125,30 +125,54 @@ resource "aws_lb" "lb" {
 
 }
 
-resource "aws_lb_target_group" "target" {
-  name     = "omnidroid-lb-tg"
+# TLS passthrough - port 443
+resource "aws_lb_listener" "tcp" {
+  load_balancer_arn = aws_lb.lb.arn
+  port              = "443"
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tcp.arn
+  }
+}
+
+resource "aws_lb_target_group" "tcp" {
+  name     = "omnidroid-lb-tcp-tg"
   port     = 443
   protocol = "TCP"
   vpc_id   = aws_vpc.default.id
 }
 
-resource "aws_lb_target_group_attachment" "omnidroid_tga" {
-  target_group_arn = aws_lb_target_group.target.arn
+resource "aws_lb_target_group_attachment" "omnidroid_tcp" {
+  target_group_arn = aws_lb_target_group.tcp.arn
   target_id        = aws_instance.https_server.id
-  port             = 443
 }
 
-resource "aws_lb_listener" "front_end" {
+# cert offload - port 444
+resource "aws_lb_listener" "tls" {
   load_balancer_arn = aws_lb.lb.arn
-  port              = "443"
-  protocol          = "TCP"
-#   ssl_policy        = "ELBSecurityPolicy-2016-08"
-#   certificate_arn   = "arn:aws:acm:eu-west-1:019165562641:certificate/1b04e6d6-5107-478a-94c5-69ebc6139fd1"
+  port              = "444"
+  protocol          = "TLS"
+   ssl_policy        = "ELBSecurityPolicy-2016-08"
+   certificate_arn   = "arn:aws:acm:eu-west-1:019165562641:certificate/1b04e6d6-5107-478a-94c5-69ebc6139fd1"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.target.arn
+    target_group_arn = aws_lb_target_group.tls.arn
   }
+}
+
+resource "aws_lb_target_group" "tls" {
+  name     = "omnidroid-lb-tls-tg"
+  port     = 443
+  protocol = "TLS"
+  vpc_id   = aws_vpc.default.id
+}
+
+resource "aws_lb_target_group_attachment" "omnidroid_tls" {
+  target_group_arn = aws_lb_target_group.tls.arn
+  target_id        = aws_instance.https_server.id
 }
 
 resource "aws_route53_record" "omnidroid" {
